@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SlideNotes Exporter</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <!-- Google Identity Services (OAuth 2.0) -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+
+
+    <div class="app-container">
+        <header>
+            <div class="logo">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M4 4H20C21.1046 4 22 4.89543 22 6V18C22 19.1046 21.1046 20 20 20H4C2.89543 20 2 19.1046 2 18V6C2 4.89543 2.89543 4 4 4Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M12 4V20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M2 12H22" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <h1>SlideNotes</h1>
+            </div>
+            <button id="auth-btn" class="btn btn-secondary">Connect Google</button>
+        </header>
+
+        <main>
+            <div class="card main-inputs">
+                <h2>Document Links</h2>
+                <p class="subtitle">Paste the full URLs of your Google Slides and Google Docs below.</p>
+                
+                <div class="input-group">
+                    <label for="slides-url">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="24" height="24" rx="4" fill="#F4B400"/>
+                            <rect x="5" y="6" width="14" height="12" rx="1" fill="white"/>
+                            <rect x="6" y="15" width="12" height="2" fill="#F4B400"/>
+                        </svg>
+                        Google Slides URL
+                    </label>
+                    <input type="url" id="slides-url" placeholder="https://docs.google.com/presentation/d/..." autocomplete="off">
+                </div>
+
+                <div class="input-group">
+                    <label for="docs-url">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="24" height="24" rx="4" fill="#4285F4"/>
+                            <rect x="6" y="7" width="12" height="2" fill="white"/>
+                            <rect x="6" y="11" width="12" height="2" fill="white"/>
+                            <rect x="6" y="15" width="8" height="2" fill="white"/>
+                        </svg>
+                        Google Docs URL
+                    </label>
+                    <input type="url" id="docs-url" placeholder="https://docs.google.com/document/d/..." autocomplete="off">
+                </div>
+            </div>
+
+            <div class="card settings-card">
+                <div class="settings-header" id="settings-toggle">
+                    <h2>Configuration Variables</h2>
+                    <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                
+                <div class="settings-content" id="settings-content">
+                    <div class="settings-grid">
+                        <!-- Skipped slides behavior -->
+                        <div class="setting-group">
+                            <h3>Skipped Slides</h3>
+                            
+                            <label class="toggle">
+                                <input type="checkbox" id="exclude-skipped" checked>
+                                <span class="slider"></span>
+                                <span class="label-text">Exclude completely</span>
+                            </label>
+                            
+                            <label class="toggle">
+                                <input type="checkbox" id="grey-skipped" checked>
+                                <span class="slider"></span>
+                                <span class="label-text">Grey out (if included)</span>
+                            </label>
+                            
+                            <div class="input-group color-input">
+                                <label for="skipped-color">Skipped Text Color</label>
+                                <div class="color-picker-wrapper">
+                                    <input type="color" id="skipped-color" value="#dddddd">
+                                    <span class="color-val">#dddddd</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Content paragraph styling -->
+                        <div class="setting-group">
+                            <h3>Body Styling</h3>
+                            
+                            <div class="input-group">
+                                <label for="content-size">Font Size (pt)</label>
+                                <input type="number" id="content-size" value="11" min="1" max="72">
+                            </div>
+                            
+                            <div class="input-group color-input">
+                                <label for="content-color">Text Color</label>
+                                <div class="color-picker-wrapper">
+                                    <input type="color" id="content-color" value="#000000">
+                                    <span class="color-val">#000000</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Heading styling -->
+                        <div class="setting-group">
+                            <h3>Heading Styling</h3>
+                            
+                            <div class="input-group">
+                                <label for="heading-size">Font Size (pt)</label>
+                                <input type="number" id="heading-size" value="14" min="1" max="72">
+                            </div>
+                            
+                            <div class="input-group color-input">
+                                <label for="heading-color">Text Color</label>
+                                <div class="color-picker-wrapper">
+                                    <input type="color" id="heading-color" value="#000000">
+                                    <span class="color-val">#000000</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Slide ID & Dashes styling -->
+                        <div class="setting-group">
+                            <h3>Separators & Tags</h3>
+                            
+                            <div class="input-group">
+                                <label for="dashes-text">Separator Text</label>
+                                <input type="text" id="dashes-text" value="------">
+                            </div>
+
+                            <div class="input-group color-input">
+                                <label for="dashes-color">Separator Color</label>
+                                <div class="color-picker-wrapper">
+                                    <input type="color" id="dashes-color" value="#000000">
+                                    <span class="color-val">#000000</span>
+                                </div>
+                            </div>
+
+                            <div class="input-group">
+                                <label for="tag-size">Tag Size (pt)</label>
+                                <input type="number" id="tag-size" value="8" min="1" max="72">
+                            </div>
+                            
+                            <div class="input-group color-input">
+                                <label for="tag-color">Tag Color</label>
+                                <div class="color-picker-wrapper">
+                                    <input type="color" id="tag-color" value="#dddddd">
+                                    <span class="color-val">#dddddd</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="action-bar">
+                <button id="export-btn" class="btn btn-primary" disabled>
+                    <span>Export Notes to Doc</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M5 12H19M19 12L12 5M19 12L12 19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+            </div>
+            
+            <div id="status-message" class="status-message hidden">
+                <div class="spinner"></div>
+                <span class="message-text">Exporting...</span>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
