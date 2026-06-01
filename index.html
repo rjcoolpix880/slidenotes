@@ -41,7 +41,10 @@
                         </svg>
                         Google Slides URL
                     </label>
-                    <input type="url" id="slides-url" placeholder="https://docs.google.com/presentation/d/..." autocomplete="off">
+                    <div class="input-with-dropdown">
+                        <input type="url" id="slides-url" placeholder="Search files or paste URL..." autocomplete="off">
+                        <div id="slides-dropdown" class="autocomplete-dropdown hidden"></div>
+                    </div>
                 </div>
 
                 <div class="input-group">
@@ -54,7 +57,10 @@
                         </svg>
                         Google Docs URL
                     </label>
-                    <input type="url" id="docs-url" placeholder="https://docs.google.com/document/d/..." autocomplete="off">
+                    <div class="input-with-dropdown">
+                        <input type="url" id="docs-url" placeholder="Search files or paste URL..." autocomplete="off">
+                        <div id="docs-dropdown" class="autocomplete-dropdown hidden"></div>
+                    </div>
                 </div>
             </div>
 

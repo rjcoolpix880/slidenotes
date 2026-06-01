@@ -73,14 +73,18 @@ docsUrlInput.addEventListener('input', validateInputs);
 const CLIENT_ID = '824698592565-bqspd7oci5klqbttj1epnstl4e8lggeg.apps.googleusercontent.com'; // <-- PASTE YOUR CLIENT ID HERE
 const DISCOVERY_DOCS = [
     "https://slides.googleapis.com/$discovery/rest?version=v1",
-    "https://docs.googleapis.com/$discovery/rest?version=v1"
+    "https://docs.googleapis.com/$discovery/rest?version=v1",
+    "https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"
 ];
-const SCOPES = "https://www.googleapis.com/auth/presentations.readonly https://www.googleapis.com/auth/documents";
+const SCOPES = "https://www.googleapis.com/auth/presentations.readonly https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/drive.metadata.readonly";
 
 let tokenClient;
 let gapiInited = false;
 let gisInited = false;
 let isAuthenticated = false;
+
+let userSlides = [];
+let userDocs = [];
 
 const authBtn = document.getElementById('auth-btn');
 
@@ -137,6 +141,7 @@ authBtn.addEventListener('click', () => {
         authBtn.textContent = "Connected!";
         authBtn.classList.add('connected');
         validateInputs();
+        loadUserDriveFiles();
     };
 
     if (gapi.client.getToken() === null) {
@@ -448,3 +453,161 @@ async function performExport(slidesId, docsId, config, messageText) {
         }
     }
 }
+
+// --- Dynamic File Search & Autocomplete ---
+
+const slidesDropdown = document.getElementById('slides-dropdown');
+const docsDropdown = document.getElementById('docs-dropdown');
+
+async function loadUserDriveFiles() {
+    try {
+        // Fetch Slides
+        const slidesResp = await gapi.client.drive.files.list({
+            q: "mimeType = 'application/vnd.google-apps.presentation' and trashed = false",
+            orderBy: "modifiedTime desc",
+            pageSize: 100,
+            fields: "files(id, name)"
+        });
+        userSlides = slidesResp.result.files || [];
+
+        // Fetch Docs
+        const docsResp = await gapi.client.drive.files.list({
+            q: "mimeType = 'application/vnd.google-apps.document' and trashed = false",
+            orderBy: "modifiedTime desc",
+            pageSize: 100,
+            fields: "files(id, name)"
+        });
+        userDocs = docsResp.result.files || [];
+    } catch (e) {
+        console.error("Error loading drive files:", e);
+        const errorMsg = e.result?.error?.message || e.message || JSON.stringify(e);
+        alert("Could not load Google Drive files.\n\nReason: " + errorMsg + "\n\nTip: You likely need to enable the 'Google Drive API' in your Google Cloud Console project, or you might need to disconnect and reconnect to grant the new scope permission.");
+    }
+}
+
+function setupAutocomplete(input, dropdown, getFiles, getUrl) {
+    let focusedIndex = -1;
+
+    function renderDropdown(filteredFiles) {
+        dropdown.innerHTML = '';
+        if (filteredFiles.length === 0) {
+            const noResults = document.createElement('div');
+            noResults.className = 'dropdown-no-results';
+            noResults.textContent = 'No matching files found';
+            dropdown.appendChild(noResults);
+            return;
+        }
+
+        filteredFiles.forEach((file, index) => {
+            const item = document.createElement('div');
+            item.className = 'dropdown-item';
+            if (index === focusedIndex) {
+                item.classList.add('focused');
+            }
+            
+            const titleSpan = document.createElement('span');
+            titleSpan.textContent = file.name;
+            item.appendChild(titleSpan);
+
+            item.addEventListener('click', () => {
+                input.value = getUrl(file.id);
+                dropdown.classList.add('hidden');
+                validateInputs();
+            });
+
+            dropdown.appendChild(item);
+        });
+    }
+
+    function filterAndShow() {
+        if (!isAuthenticated) return;
+        const val = input.value;
+        
+        // If it looks like a URL, do not show dropdown
+        if (val.startsWith('http://') || val.startsWith('https://')) {
+            dropdown.classList.add('hidden');
+            return;
+        }
+
+        const files = getFiles();
+        const filtered = files.filter(f => f.name.toLowerCase().includes(val.toLowerCase()));
+        
+        // Show up to 10 matching files
+        const matches = filtered.slice(0, 10);
+        focusedIndex = -1;
+        renderDropdown(matches);
+        dropdown.classList.remove('hidden');
+    }
+
+    input.addEventListener('focus', () => {
+        if (!isAuthenticated && !userSlides.length && !userDocs.length) {
+            return;
+        }
+        filterAndShow();
+    });
+
+    input.addEventListener('input', () => {
+        filterAndShow();
+    });
+
+    // Keyboard navigation
+    input.addEventListener('keydown', (e) => {
+        if (dropdown.classList.contains('hidden')) return;
+
+        const items = dropdown.querySelectorAll('.dropdown-item');
+        if (items.length === 0) return;
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            focusedIndex = (focusedIndex + 1) % items.length;
+            updateFocus(items);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            focusedIndex = (focusedIndex - 1 + items.length) % items.length;
+            updateFocus(items);
+        } else if (e.key === 'Enter') {
+            if (focusedIndex >= 0 && focusedIndex < items.length) {
+                e.preventDefault();
+                items[focusedIndex].click();
+            }
+        } else if (e.key === 'Escape') {
+            dropdown.classList.add('hidden');
+        }
+    });
+
+    function updateFocus(items) {
+        items.forEach((item, index) => {
+            if (index === focusedIndex) {
+                item.classList.add('focused');
+                item.scrollIntoView({ block: 'nearest' });
+            } else {
+                item.classList.remove('focused');
+            }
+        });
+    }
+}
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', (e) => {
+    if (!slidesUrlInput.contains(e.target) && !slidesDropdown.contains(e.target)) {
+        slidesDropdown.classList.add('hidden');
+    }
+    if (!docsUrlInput.contains(e.target) && !docsDropdown.contains(e.target)) {
+        docsDropdown.classList.add('hidden');
+    }
+});
+
+// Setup both fields
+setupAutocomplete(
+    slidesUrlInput, 
+    slidesDropdown, 
+    () => userSlides, 
+    (id) => `https://docs.google.com/presentation/d/${id}/edit`
+);
+
+setupAutocomplete(
+    docsUrlInput, 
+    docsDropdown, 
+    () => userDocs, 
+    (id) => `https://docs.google.com/document/d/${id}/edit`
+);
