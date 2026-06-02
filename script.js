@@ -25,9 +25,16 @@ const slidesUrlInput = document.getElementById('slides-url');
 const docsUrlInput = document.getElementById('docs-url');
 const exportBtn = document.getElementById('export-btn');
 
+function getFileId(input) {
+    if (input.dataset.fileId) {
+        return input.dataset.fileId;
+    }
+    return extractIdFromUrl(input.value);
+}
+
 function validateInputs() {
-    const slidesId = extractIdFromUrl(slidesUrlInput.value);
-    const docsId = extractIdFromUrl(docsUrlInput.value);
+    const slidesId = getFileId(slidesUrlInput);
+    const docsId = getFileId(docsUrlInput);
     
     // Enable export button if both URLs have valid IDs and user is authenticated
     if (slidesId && docsId) {
@@ -49,8 +56,40 @@ function extractIdFromUrl(url) {
     return match ? match[1] : null;
 }
 
-slidesUrlInput.addEventListener('input', validateInputs);
-docsUrlInput.addEventListener('input', validateInputs);
+async function handleInputUpdate(input) {
+    const val = input.value.trim();
+    const id = extractIdFromUrl(val);
+    if (id) {
+        input.dataset.fileId = id;
+        if (isAuthenticated) {
+            try {
+                const response = await gapi.client.drive.files.get({
+                    fileId: id,
+                    fields: 'name'
+                });
+                const name = response.result.name;
+                if (name) {
+                    input.value = name;
+                    input.dataset.fileName = name;
+                }
+            } catch (e) {
+                console.error("Error fetching file name for URL:", e);
+            }
+        } else {
+            input.dataset.fileName = '';
+        }
+    } else {
+        // If user typed/changed something, check if it's different from the selected file name
+        if (input.dataset.fileName && val !== input.dataset.fileName) {
+            input.dataset.fileId = '';
+            input.dataset.fileName = '';
+        }
+    }
+    validateInputs();
+}
+
+slidesUrlInput.addEventListener('input', () => handleInputUpdate(slidesUrlInput));
+docsUrlInput.addEventListener('input', () => handleInputUpdate(docsUrlInput));
 
 // --- Google Auth & Export Logic ---
 
@@ -140,7 +179,11 @@ authBtn.addEventListener('click', () => {
         isAuthenticated = true;
         authBtn.textContent = "Connected!";
         authBtn.classList.add('connected');
-        validateInputs();
+        // Convert any pasted URLs to names now that we are authenticated
+        await Promise.all([
+            handleInputUpdate(slidesUrlInput),
+            handleInputUpdate(docsUrlInput)
+        ]);
         loadUserDriveFiles();
     };
 
@@ -174,8 +217,8 @@ const messageText = statusMessage.querySelector('.message-text');
 const spinner = statusMessage.querySelector('.spinner');
 
 exportBtn.addEventListener('click', async () => {
-    const slidesId = extractIdFromUrl(slidesUrlInput.value);
-    const docsId = extractIdFromUrl(docsUrlInput.value);
+    const slidesId = getFileId(slidesUrlInput);
+    const docsId = getFileId(docsUrlInput);
     
     if (!slidesId || !docsId) return;
     
@@ -184,6 +227,7 @@ exportBtn.addEventListener('click', async () => {
         excludeSkipped: document.getElementById('exclude-skipped').checked,
         greySkipped: document.getElementById('grey-skipped').checked,
         skippedColor: document.getElementById('skipped-color').value,
+        forceSoftReturns: document.getElementById('force-soft-returns').checked,
         contentSize: parseInt(document.getElementById('content-size').value, 10),
         contentColor: document.getElementById('content-color').value,
         headingSize: parseInt(document.getElementById('heading-size').value, 10),
@@ -278,22 +322,22 @@ async function performExport(slidesId, docsId, config, messageText) {
                 hasTextStyle = true;
             }
             
-            if (hasTextStyle) {
-                requests.push({
-                    updateTextStyle: {
-                        range: { startIndex: start, endIndex: end },
-                        textStyle: textStyle,
-                        fields: Object.keys(textStyle).join(',')
-                    }
-                });
-            }
-
             if (styleObj.heading) {
                 requests.push({
                     updateParagraphStyle: {
                         range: { startIndex: start, endIndex: end },
                         paragraphStyle: { namedStyleType: styleObj.heading },
                         fields: 'namedStyleType'
+                    }
+                });
+            }
+
+            if (hasTextStyle) {
+                requests.push({
+                    updateTextStyle: {
+                        range: { startIndex: start, endIndex: end },
+                        textStyle: textStyle,
+                        fields: Object.keys(textStyle).join(',')
                     }
                 });
             }
@@ -389,8 +433,14 @@ async function performExport(slidesId, docsId, config, messageText) {
         if (!text) return;
         
         let tokenized = text.replace(/\*\*(.*?)\*\*/g, "BOLD_START$1BOLD_END")
-                            .replace(/\*(.*?)\*/g, "ITALIC_START$1ITALIC_END")
-                            .replace(/SOFT_RETURN/g, "\n");
+                            .replace(/\*(.*?)\*/g, "ITALIC_START$1ITALIC_END");
+                            
+        if (config.forceSoftReturns) {
+            tokenized = tokenized.replace(/SOFT_RETURN/g, "\u000b")
+                                 .replace(/\n/g, "\u000b");
+        } else {
+            tokenized = tokenized.replace(/SOFT_RETURN/g, "\u000b");
+        }
                             
         let currentText = tokenized;
         while (currentText.length > 0) {
@@ -510,7 +560,9 @@ function setupAutocomplete(input, dropdown, getFiles, getUrl) {
             item.appendChild(titleSpan);
 
             item.addEventListener('click', () => {
-                input.value = getUrl(file.id);
+                input.value = file.name;
+                input.dataset.fileId = file.id;
+                input.dataset.fileName = file.name;
                 dropdown.classList.add('hidden');
                 validateInputs();
             });
